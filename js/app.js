@@ -4,7 +4,8 @@
  */
 
 const STORAGE_KEYS = {
-  selectedSongs: "karaokePicker:selectedSongs:v1",
+  selectedSongs:
+    "karaokePicker:selectedSongs:v1",
 };
 
 class KaraokePicker {
@@ -149,17 +150,27 @@ class KaraokePicker {
       }
     );
 
-    this.filterButtons.forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        this.filterButtons.forEach((b) =>
-          b.classList.remove("active")
+    this.filterButtons.forEach(
+      (btn) => {
+        btn.addEventListener(
+          "click",
+          (e) => {
+            this.filterButtons.forEach(
+              (b) =>
+                b.classList.remove(
+                  "active"
+                )
+            );
+            e.target.classList.add(
+              "active"
+            );
+            this.currentFilter =
+              e.target.dataset.filter;
+            this.renderAvailableList();
+          }
         );
-        e.target.classList.add("active");
-        this.currentFilter =
-          e.target.dataset.filter;
-        this.renderAvailableList();
-      });
-    });
+      }
+    );
 
     this.copyLinkBtn.addEventListener(
       "click",
@@ -218,14 +229,17 @@ class KaraokePicker {
       }
     );
 
-    window.addEventListener("popstate", () => {
-      const loadedFromURL =
-        this.loadStateFromURL();
-      if (!loadedFromURL) {
-        this.loadStateFromStorage();
+    window.addEventListener(
+      "popstate",
+      () => {
+        const loadedFromURL =
+          this.loadStateFromURL();
+        if (!loadedFromURL) {
+          this.loadStateFromStorage();
+        }
+        this.render();
       }
-      this.render();
-    });
+    );
   }
 
   /**
@@ -239,11 +253,14 @@ class KaraokePicker {
       return false;
     }
 
-    const selectedSongsFromURL = selectedIds
-      .map((id) =>
-        this.songs.find((song) => song.id === id)
-      )
-      .filter(Boolean);
+    const selectedSongsFromURL =
+      selectedIds
+        .map((id) =>
+          this.songs.find(
+            (song) => song.id === id
+          )
+        )
+        .filter(Boolean);
 
     this.selectedSongs =
       selectedSongsFromURL;
@@ -270,13 +287,19 @@ class KaraokePicker {
         return false;
       }
 
-      const selectedSongsFromStorage = parsed
-        .map((id) =>
-          this.songs.find((song) => song.id === id)
-        )
-        .filter(Boolean);
+      const selectedSongsFromStorage =
+        parsed
+          .map((id) =>
+            this.songs.find(
+              (song) => song.id === id
+            )
+          )
+          .filter(Boolean);
 
-      if (selectedSongsFromStorage.length === 0) {
+      if (
+        selectedSongsFromStorage.length ===
+        0
+      ) {
         return false;
       }
 
@@ -423,9 +446,10 @@ class KaraokePicker {
     }
 
     try {
-      const ids = this.selectedSongs.map(
-        (song) => song.id
-      );
+      const ids =
+        this.selectedSongs.map(
+          (song) => song.id
+        );
       localStorage.setItem(
         STORAGE_KEYS.selectedSongs,
         JSON.stringify(ids)
@@ -440,8 +464,12 @@ class KaraokePicker {
 
   checkStorageAvailability() {
     try {
-      const testKey = "__kp_storage_test__";
-      localStorage.setItem(testKey, "1");
+      const testKey =
+        "__kp_storage_test__";
+      localStorage.setItem(
+        testKey,
+        "1"
+      );
       localStorage.removeItem(testKey);
       return true;
     } catch (error) {
