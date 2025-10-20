@@ -3,6 +3,10 @@
  * Main logic for song selection and UI management
  */
 
+const STORAGE_KEYS = {
+  selectedSongs: "karaokePicker:selectedSongs:v1",
+};
+
 class KaraokePicker {
   constructor() {
     this.songs = this.processSongs(
@@ -20,10 +24,17 @@ class KaraokePicker {
     this.pendingRenderFrame = null;
     this.alphabetSongs = [];
     this.availableScrollHandler = null;
+    this.storageAvailable =
+      this.checkStorageAvailability();
+
     this.initializeElements();
     this.attachEventListeners();
     this.updateShareButtonsState();
-    this.loadStateFromURL();
+    const loadedFromURL =
+      this.loadStateFromURL();
+    if (!loadedFromURL) {
+      this.loadStateFromStorage();
+    }
     this.render();
   }
 
@@ -138,27 +149,17 @@ class KaraokePicker {
       }
     );
 
-    this.filterButtons.forEach(
-      (btn) => {
-        btn.addEventListener(
-          "click",
-          (e) => {
-            this.filterButtons.forEach(
-              (b) =>
-                b.classList.remove(
-                  "active"
-                )
-            );
-            e.target.classList.add(
-              "active"
-            );
-            this.currentFilter =
-              e.target.dataset.filter;
-            this.renderAvailableList();
-          }
+    this.filterButtons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        this.filterButtons.forEach((b) =>
+          b.classList.remove("active")
         );
-      }
-    );
+        e.target.classList.add("active");
+        this.currentFilter =
+          e.target.dataset.filter;
+        this.renderAvailableList();
+      });
+    });
 
     this.copyLinkBtn.addEventListener(
       "click",
@@ -217,13 +218,14 @@ class KaraokePicker {
       }
     );
 
-    window.addEventListener(
-      "popstate",
-      () => {
+    window.addEventListener("popstate", () => {
+      const loadedFromURL =
         this.loadStateFromURL();
-        this.render();
+      if (!loadedFromURL) {
+        this.loadStateFromStorage();
       }
-    );
+      this.render();
+    });
   }
 
   /**
@@ -234,22 +236,62 @@ class KaraokePicker {
       URLState.decodeState();
 
     if (selectedIds.length === 0) {
-      return;
+      return false;
     }
 
-    const selectedSongsFromURL = [];
-    selectedIds.forEach((id) => {
-      const song = this.songs.find(
-        (s) => s.id === id
-      );
-      if (song) {
-        selectedSongsFromURL.push(song);
-      }
-    });
+    const selectedSongsFromURL = selectedIds
+      .map((id) =>
+        this.songs.find((song) => song.id === id)
+      )
+      .filter(Boolean);
 
     this.selectedSongs =
       selectedSongsFromURL;
     this.updateAvailableSongs();
+    this.saveSelectedSongsToStorage();
+    return true;
+  }
+
+  loadStateFromStorage() {
+    if (!this.storageAvailable) {
+      return false;
+    }
+
+    try {
+      const raw = localStorage.getItem(
+        STORAGE_KEYS.selectedSongs
+      );
+      if (!raw) {
+        return false;
+      }
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return false;
+      }
+
+      const selectedSongsFromStorage = parsed
+        .map((id) =>
+          this.songs.find((song) => song.id === id)
+        )
+        .filter(Boolean);
+
+      if (selectedSongsFromStorage.length === 0) {
+        return false;
+      }
+
+      this.selectedSongs =
+        selectedSongsFromStorage;
+      this.updateAvailableSongs();
+      this.updateURLState();
+      return true;
+    } catch (error) {
+      console.warn(
+        "Não foi possível carregar as músicas salvas:",
+        error
+      );
+      return false;
+    }
   }
 
   /**
@@ -372,6 +414,43 @@ class KaraokePicker {
         (s) => s.id
       );
     URLState.encodeState(selectedIds);
+    this.saveSelectedSongsToStorage();
+  }
+
+  saveSelectedSongsToStorage() {
+    if (!this.storageAvailable) {
+      return;
+    }
+
+    try {
+      const ids = this.selectedSongs.map(
+        (song) => song.id
+      );
+      localStorage.setItem(
+        STORAGE_KEYS.selectedSongs,
+        JSON.stringify(ids)
+      );
+    } catch (error) {
+      console.warn(
+        "Não foi possível salvar as músicas selecionadas:",
+        error
+      );
+    }
+  }
+
+  checkStorageAvailability() {
+    try {
+      const testKey = "__kp_storage_test__";
+      localStorage.setItem(testKey, "1");
+      localStorage.removeItem(testKey);
+      return true;
+    } catch (error) {
+      console.warn(
+        "Armazenamento local indisponível:",
+        error
+      );
+      return false;
+    }
   }
 
   /**
