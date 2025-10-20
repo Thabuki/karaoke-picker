@@ -15,9 +15,17 @@ class KaraokePicker {
     ];
     this.currentFilter = "all";
     this.searchQuery = "";
+    this.isFullscreen = false;
+    this.showArtistHeaders = true;
+    this.searchDebounceTimeout = null;
+    this.pendingRenderFrame = null;
+    this.alphabetSongs = [];
+    this.availableScrollHandler = null;
 
     this.initializeElements();
     this.attachEventListeners();
+    this.updateArtistToggleButton();
+    this.updateShareButtonsState();
     this.loadStateFromURL();
     this.render();
   }
@@ -83,6 +91,18 @@ class KaraokePicker {
       document.getElementById(
         "copyLinkBtn"
       );
+    this.copyListBtn =
+      document.getElementById(
+        "copyListBtn"
+      );
+    this.qrCodeBtn =
+      document.getElementById(
+        "qrCodeBtn"
+      );
+    this.exportBtn =
+      document.getElementById(
+        "exportBtn"
+      );
     this.clearAllBtn =
       document.getElementById(
         "clearAllBtn"
@@ -105,6 +125,31 @@ class KaraokePicker {
       document.getElementById(
         "fullscreenBtn"
       );
+    this.toggleHeadersBtn =
+      document.getElementById(
+        "toggleHeadersBtn"
+      );
+    this.qrModal =
+      document.getElementById(
+        "qrModal"
+      );
+    this.qrCanvas =
+      document.getElementById(
+        "qrCanvas"
+      );
+    this.qrCloseBtn =
+      document.getElementById(
+        "qrCloseBtn"
+      );
+    this.qrLinkPreview =
+      document.getElementById(
+        "qrLinkPreview"
+      );
+    this.qrBackdrop = this.qrModal
+      ? this.qrModal.querySelector(
+          "[data-dismiss='qr']"
+        )
+      : null;
   }
 
   /**
@@ -115,9 +160,9 @@ class KaraokePicker {
     this.searchInput.addEventListener(
       "input",
       (e) => {
-        this.searchQuery =
-          e.target.value.toLowerCase();
-        this.renderAvailableList();
+        this.handleSearchInput(
+          e.target.value
+        );
       }
     );
 
@@ -150,6 +195,28 @@ class KaraokePicker {
       () => this.copyShareableLink()
     );
 
+    if (this.copyListBtn) {
+      this.copyListBtn.addEventListener(
+        "click",
+        () => this.copySelectedDetails()
+      );
+    }
+
+    if (this.qrCodeBtn) {
+      this.qrCodeBtn.addEventListener(
+        "click",
+        () => this.showQRCodeModal()
+      );
+    }
+
+    if (this.exportBtn) {
+      this.exportBtn.addEventListener(
+        "click",
+        () =>
+          this.exportSelectedToPrint()
+      );
+    }
+
     // Clear all button
     this.clearAllBtn.addEventListener(
       "click",
@@ -172,9 +239,80 @@ class KaraokePicker {
         ) {
           this.toggleFullscreen();
         }
+
+        const activeElement =
+          document.activeElement;
+        const isTyping =
+          activeElement &&
+          (activeElement.tagName ===
+            "INPUT" ||
+            activeElement.tagName ===
+              "TEXTAREA" ||
+            activeElement.isContentEditable);
+
+        if (
+          e.key === "/" &&
+          !e.altKey &&
+          !e.ctrlKey &&
+          !e.metaKey &&
+          !isTyping
+        ) {
+          this.focusSearchInput();
+          e.preventDefault();
+        }
+
+        if (
+          e.key === "k" &&
+          (e.metaKey || e.ctrlKey) &&
+          !isTyping
+        ) {
+          this.focusSearchInput();
+          e.preventDefault();
+        }
+
+        if (
+          e.key === "Escape" &&
+          this.isQRModalOpen()
+        ) {
+          this.hideQRCodeModal();
+        }
       }
     );
 
+    if (this.toggleHeadersBtn) {
+      this.toggleHeadersBtn.addEventListener(
+        "click",
+        () => this.toggleArtistHeaders()
+      );
+    }
+
+    if (this.qrCloseBtn) {
+      this.qrCloseBtn.addEventListener(
+        "click",
+        () => this.hideQRCodeModal()
+      );
+    }
+
+    if (this.qrBackdrop) {
+      this.qrBackdrop.addEventListener(
+        "click",
+        () => this.hideQRCodeModal()
+      );
+    }
+
+    if (this.qrModal) {
+      this.qrModal.addEventListener(
+        "click",
+        (event) => {
+          if (
+            event.target ===
+            this.qrModal
+          ) {
+            this.hideQRCodeModal();
+          }
+        }
+      );
+    }
     // Handle browser back/forward buttons
     window.addEventListener(
       "popstate",
@@ -286,6 +424,9 @@ class KaraokePicker {
       this.selectedSongs = [];
       this.updateAvailableSongs();
       this.updateURLState();
+      if (this.isQRModalOpen()) {
+        this.hideQRCodeModal();
+      }
       this.render();
       this.showToast(
         "🗑️ Todas as músicas foram removidas!",
@@ -316,23 +457,9 @@ class KaraokePicker {
         "success"
       );
     } catch (error) {
-      // Fallback for older browsers
-      const textarea =
-        document.createElement(
-          "textarea"
-        );
-      textarea.value = url;
-      document.body.appendChild(
-        textarea
-      );
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(
-        textarea
-      );
-      this.showToast(
-        "📋 Link copiado!",
-        "success"
+      this.fallbackCopy(
+        url,
+        "📋 Link copiado!"
       );
     }
   }
@@ -486,6 +613,8 @@ class KaraokePicker {
     this.selectedCount.textContent =
       this.selectedSongs.length;
 
+    this.updateShareButtonsState();
+
     if (
       this.selectedSongs.length === 0
     ) {
@@ -505,27 +634,8 @@ class KaraokePicker {
     );
 
     // Sort selected songs the same way as available songs
-    const sortedSelected = [
-      ...this.selectedSongs,
-    ].sort((a, b) => {
-      // Sort by country first (Nacional before Internacional)
-      if (
-        a.country === "Nacional" &&
-        b.country !== "Nacional"
-      )
-        return -1;
-      if (
-        a.country !== "Nacional" &&
-        b.country === "Nacional"
-      )
-        return 1;
-
-      // Then sort alphabetically by artist
-      return a.artist.localeCompare(
-        b.artist,
-        "pt-BR"
-      );
-    });
+    const sortedSelected =
+      this.getSortedSelectedSongs();
 
     const html = sortedSelected
       .map((song) =>
@@ -536,16 +646,60 @@ class KaraokePicker {
     this.selectedList.innerHTML = html;
   }
 
+  getSortedSelectedSongs() {
+    return [...this.selectedSongs].sort(
+      (a, b) => {
+        if (
+          a.country === "Nacional" &&
+          b.country !== "Nacional"
+        ) {
+          return -1;
+        }
+        if (
+          a.country !== "Nacional" &&
+          b.country === "Nacional"
+        ) {
+          return 1;
+        }
+        return a.artist.localeCompare(
+          b.artist,
+          "pt-BR"
+        );
+      }
+    );
+  }
+
   /**
    * Render available songs list
    */
-  renderAvailableList() {
+  renderAvailableList(options = {}) {
+    const immediate =
+      !!options.immediate;
+    const preserveScroll =
+      !!options.preserveScroll;
+
     const filtered =
       this.getFilteredSongs();
     this.availableCount.textContent =
       filtered.length;
 
+    this.cancelAvailableRender();
+
+    if (this.availableScrollHandler) {
+      this.availableList.removeEventListener(
+        "scroll",
+        this.availableScrollHandler
+      );
+      this.availableScrollHandler =
+        null;
+    }
+
+    this.alphabetSongs = filtered;
+
     if (filtered.length === 0) {
+      this.availableList.classList.remove(
+        "headers-hidden"
+      );
       this.availableList.innerHTML = `
         <div class="empty-state">
           <p class="empty-message">
@@ -557,30 +711,91 @@ class KaraokePicker {
           </p>
         </div>
       `;
+      this.buildAlphabetNav(filtered);
       return;
     }
 
-    const htmlParts = [];
-    let lastArtist = null;
+    const previousScroll =
+      preserveScroll
+        ? this.availableList.scrollTop
+        : 0;
 
-    filtered.forEach((song) => {
-      if (song.artist !== lastArtist) {
-        lastArtist = song.artist;
-        htmlParts.push(
-          `<div class="artist-header">${this.escapeHtml(
-            song.artist
-          )}</div>`
+    this.availableList.innerHTML = "";
+    if (this.showArtistHeaders) {
+      this.availableList.classList.remove(
+        "headers-hidden"
+      );
+    } else {
+      this.availableList.classList.add(
+        "headers-hidden"
+      );
+    }
+
+    let index = 0;
+    let lastArtist = null;
+    const chunkSize = immediate
+      ? 800
+      : 150;
+
+    const renderChunk = () => {
+      const buffer = [];
+      let itemsRendered = 0;
+
+      while (
+        index < filtered.length &&
+        itemsRendered < chunkSize
+      ) {
+        const song = filtered[index];
+        if (
+          this.showArtistHeaders &&
+          song.artist !== lastArtist
+        ) {
+          lastArtist = song.artist;
+          buffer.push(
+            `<div class="artist-header">${this.escapeHtml(
+              song.artist
+            )}</div>`
+          );
+        } else if (
+          !this.showArtistHeaders &&
+          song.artist !== lastArtist
+        ) {
+          lastArtist = song.artist;
+        }
+
+        buffer.push(
+          this.createSongHTML(
+            song,
+            false
+          )
         );
+        index += 1;
+        itemsRendered += 1;
       }
 
-      htmlParts.push(
-        this.createSongHTML(song, false)
+      this.availableList.insertAdjacentHTML(
+        "beforeend",
+        buffer.join("")
       );
-    });
 
-    this.availableList.innerHTML =
-      htmlParts.join("");
-    this.buildAlphabetNav(filtered);
+      if (index < filtered.length) {
+        this.pendingRenderFrame =
+          window.requestAnimationFrame(
+            renderChunk
+          );
+      } else {
+        this.pendingRenderFrame = null;
+        this.buildAlphabetNav(filtered);
+        if (preserveScroll) {
+          this.availableList.scrollTop =
+            previousScroll;
+        } else {
+          this.availableList.scrollTop = 0;
+        }
+      }
+    };
+
+    renderChunk();
   }
 
   /**
@@ -643,11 +858,14 @@ class KaraokePicker {
       });
 
     // Setup scroll listener to highlight current letter
-    this.availableList.addEventListener(
-      "scroll",
+    this.availableScrollHandler =
       () => {
         this.updateCurrentLetter(songs);
-      }
+      };
+
+    this.availableList.addEventListener(
+      "scroll",
+      this.availableScrollHandler
     );
 
     // Initial highlight
@@ -899,12 +1117,393 @@ class KaraokePicker {
     }
   }
 
+  handleSearchInput(value) {
+    const normalized = value
+      .trim()
+      .toLowerCase();
+    if (this.searchDebounceTimeout) {
+      window.clearTimeout(
+        this.searchDebounceTimeout
+      );
+    }
+
+    this.searchDebounceTimeout =
+      window.setTimeout(
+        () => {
+          this.searchQuery = normalized;
+          const preserveScroll =
+            normalized.length === 0;
+          this.renderAvailableList({
+            preserveScroll,
+          });
+        },
+        normalized.length > 2 ? 120 : 60
+      );
+  }
+
+  focusSearchInput() {
+    if (!this.searchInput) return;
+    this.searchInput.focus();
+    if (
+      typeof this.searchInput.select ===
+      "function"
+    ) {
+      this.searchInput.select();
+    }
+  }
+
+  toggleArtistHeaders() {
+    this.showArtistHeaders =
+      !this.showArtistHeaders;
+    this.updateArtistToggleButton();
+    this.renderAvailableList({
+      preserveScroll: true,
+      immediate: true,
+    });
+  }
+
+  updateArtistToggleButton() {
+    if (!this.toggleHeadersBtn) return;
+    const label = this.showArtistHeaders
+      ? "🙈 Ocultar artistas"
+      : "👁️ Mostrar artistas";
+    this.toggleHeadersBtn.textContent =
+      label;
+    this.toggleHeadersBtn.setAttribute(
+      "aria-pressed",
+      this.showArtistHeaders
+        ? "true"
+        : "false"
+    );
+  }
+
+  isQRModalOpen() {
+    return (
+      this.qrModal &&
+      !this.qrModal.classList.contains(
+        "hidden"
+      )
+    );
+  }
+
+  showQRCodeModal() {
+    if (
+      !this.qrModal ||
+      !this.qrCanvas
+    ) {
+      return;
+    }
+
+    if (
+      !this.selectedSongs ||
+      this.selectedSongs.length === 0
+    ) {
+      this.showToast(
+        "Selecione ao menos uma música para gerar o QR Code",
+        "error"
+      );
+      return;
+    }
+
+    const selectedIds =
+      this.selectedSongs.map(
+        (s) => s.id
+      );
+    const url =
+      URLState.generateShareableURL(
+        selectedIds
+      );
+
+    if (
+      typeof window.SimpleQR ===
+      "undefined"
+    ) {
+      this.showToast(
+        "QR Code indisponível no momento",
+        "error"
+      );
+      return;
+    }
+
+    try {
+      window.SimpleQR.renderToCanvas(
+        this.qrCanvas,
+        url,
+        { margin: 3 }
+      );
+      if (this.qrLinkPreview) {
+        this.qrLinkPreview.textContent =
+          url;
+      }
+      this.qrModal.classList.remove(
+        "hidden"
+      );
+      document.body.classList.add(
+        "qr-open"
+      );
+    } catch (error) {
+      console.error(error);
+      this.showToast(
+        "Não foi possível gerar o QR Code",
+        "error"
+      );
+    }
+  }
+
+  hideQRCodeModal() {
+    if (!this.qrModal) return;
+    this.qrModal.classList.add(
+      "hidden"
+    );
+    document.body.classList.remove(
+      "qr-open"
+    );
+  }
+
+  async copySelectedDetails() {
+    if (
+      this.selectedSongs.length === 0
+    ) {
+      this.showToast(
+        "Nenhuma música selecionada ainda",
+        "error"
+      );
+      return;
+    }
+
+    const sorted =
+      this.getSortedSelectedSongs();
+    const lines = sorted.map(
+      (song, index) => {
+        return `${index + 1}. ${
+          song.title
+        } — ${song.artist} (${
+          song.country
+        }) [#${song.code}]`;
+      }
+    );
+    const link =
+      URLState.generateShareableURL(
+        sorted.map((s) => s.id)
+      );
+    const payload = `🎤 iVideokê 2025 — Lista Selecionada\n\n${lines.join(
+      "\n"
+    )}\n\n🌐 Link: ${link}`;
+
+    if (
+      navigator.clipboard &&
+      typeof navigator.clipboard
+        .writeText === "function"
+    ) {
+      try {
+        await navigator.clipboard.writeText(
+          payload
+        );
+        this.showToast(
+          "📝 Lista copiada para a área de transferência!",
+          "success"
+        );
+        return;
+      } catch (error) {
+        // continue to fallback
+      }
+    }
+
+    this.fallbackCopy(
+      payload,
+      "📝 Lista copiada!"
+    );
+  }
+
+  fallbackCopy(text, successMessage) {
+    const textarea =
+      document.createElement(
+        "textarea"
+      );
+    textarea.value = text;
+    textarea.setAttribute(
+      "readonly",
+      "true"
+    );
+    textarea.style.position =
+      "absolute";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand("copy");
+      const message =
+        successMessage ||
+        "Copiado para a área de transferência";
+      this.showToast(
+        message,
+        "success"
+      );
+    } catch (error) {
+      this.showToast(
+        "Não foi possível copiar automaticamente",
+        "error"
+      );
+    }
+    document.body.removeChild(textarea);
+  }
+
+  exportSelectedToPrint() {
+    if (
+      this.selectedSongs.length === 0
+    ) {
+      this.showToast(
+        "Nenhuma música para exportar",
+        "error"
+      );
+      return;
+    }
+
+    const sorted =
+      this.getSortedSelectedSongs();
+    const link =
+      URLState.generateShareableURL(
+        sorted.map((s) => s.id)
+      );
+
+    const rows = sorted
+      .map((song, index) => {
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${this.escapeHtml(
+              song.title
+            )}</td>
+            <td>${this.escapeHtml(
+              song.artist
+            )}</td>
+            <td>${song.country}</td>
+            <td>#${song.code}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const printHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lista de Músicas Selecionadas</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 40px; color: #222; }
+    h1 { text-align: center; margin-bottom: 10px; }
+    h2 { text-align: center; margin-top: 0; font-size: 1rem; color: #555; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; font-size: 0.95rem; }
+    th { background: #f0f3ff; }
+    tfoot td { font-weight: 600; }
+    @media print { body { margin: 10mm; } h1 { font-size: 1.6rem; } }
+  </style>
+</head>
+<body>
+  <h1>🎤 iVideokê 2025 — Lista Selecionada</h1>
+  <h2>Compartilhe: <span>${this.escapeHtml(
+    link
+  )}</span></h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Música</th>
+        <th>Artista</th>
+        <th>País</th>
+        <th>Código</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5">Total: ${
+          sorted.length
+        } músicas</td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>`;
+
+    const printWindow = window.open(
+      "",
+      "_blank",
+      "noopener,width=900,height=700"
+    );
+
+    if (!printWindow) {
+      this.showToast(
+        "Permita pop-ups para exportar",
+        "error"
+      );
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(
+      printHtml
+    );
+    printWindow.document.close();
+
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  }
+
+  cancelAvailableRender() {
+    if (
+      this.pendingRenderFrame !== null
+    ) {
+      window.cancelAnimationFrame(
+        this.pendingRenderFrame
+      );
+      this.pendingRenderFrame = null;
+    }
+  }
+
+  updateShareButtonsState() {
+    const hasSelection =
+      this.selectedSongs.length > 0;
+    const buttons = [
+      this.copyListBtn,
+      this.qrCodeBtn,
+      this.exportBtn,
+    ];
+    buttons.forEach((btn) => {
+      if (!btn) return;
+      if (hasSelection) {
+        btn.removeAttribute("disabled");
+        btn.setAttribute(
+          "aria-disabled",
+          "false"
+        );
+      } else {
+        btn.setAttribute(
+          "disabled",
+          "true"
+        );
+        btn.setAttribute(
+          "aria-disabled",
+          "true"
+        );
+      }
+    });
+  }
+
   /**
    * Render both lists
    */
   render() {
     this.renderSelectedList();
-    this.renderAvailableList();
+    this.renderAvailableList({
+      immediate: true,
+      preserveScroll: true,
+    });
   }
 
   /**

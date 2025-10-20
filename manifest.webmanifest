@@ -1,0 +1,17 @@
+{
+  "name": "iVideokê 2025 Picker",
+  "short_name": "Karaokê Picker",
+  "description": "Selecione e compartilhe músicas do catálogo iVideokê 2025",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#667eea",
+  "theme_color": "#667eea",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

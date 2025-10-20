@@ -20,9 +20,30 @@ body {
   color: #333;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.site-footer {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 30px auto 10px;
+  font-size: 0.9rem;
+}
+
+.site-footer a {
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.site-footer a:hover {
+  color: #ffe082;
 }
 
 /* Header */
@@ -133,6 +154,8 @@ section {
 .action-buttons {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .btn-action {
@@ -152,9 +175,33 @@ section {
   color: #667eea;
 }
 
+.btn-action:disabled,
+.btn-ghost:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .btn-danger:hover {
   background: #ff6b6b;
   border-color: #ff6b6b;
+  color: white;
+}
+
+.btn-ghost {
+  border: 2px solid #667eea;
+  background: transparent;
+  color: #667eea;
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-ghost:hover {
+  background: #667eea;
   color: white;
 }
 
@@ -167,6 +214,7 @@ section {
   align-items: center;
   gap: 15px;
   flex-wrap: wrap;
+  justify-content: space-between;
 }
 
 .alphabet-label {
@@ -179,6 +227,8 @@ section {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .alphabet-letter {
@@ -228,6 +278,10 @@ section {
   background: #dc3545;
   color: white;
   border-color: #dc3545;
+}
+
+.alphabet-nav .btn-ghost {
+  font-size: 0.85rem;
 }
 
 /* Fullscreen Mode */
@@ -299,6 +353,12 @@ body.catalog-fullscreen {
   justify-content: center;
 }
 
+.available-section
+  .song-list.headers-hidden
+  .artist-header {
+  display: none;
+}
+
 .song-list::-webkit-scrollbar {
   width: 10px;
 }
@@ -337,6 +397,12 @@ body.catalog-fullscreen {
   transform: translateX(5px);
 }
 
+.available-section
+  .song-list.headers-hidden
+  .song-item {
+  margin-top: 6px;
+}
+
 .artist-header {
   font-weight: 700;
   color: #4a4a4a;
@@ -357,6 +423,13 @@ body.catalog-fullscreen {
   z-index: 2;
   box-shadow: 0 2px 6px
     rgba(0, 0, 0, 0.08);
+}
+
+.available-section
+  .song-list.headers-hidden
+  .artist-header
+  + .song-item {
+  margin-top: 0;
 }
 
 .song-info {
@@ -547,6 +620,64 @@ body.catalog-fullscreen {
   background: #ff6b6b;
 }
 
+/* QR Modal */
+.qr-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.qr-modal:not(.hidden) {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.qr-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.qr-modal__content {
+  position: relative;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  width: min(90vw, 420px);
+  box-shadow: 0 20px 60px
+    rgba(0, 0, 0, 0.25);
+  text-align: center;
+  z-index: 1;
+}
+
+.qr-modal__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.qr-modal__link {
+  margin-top: 16px;
+  font-size: 0.85rem;
+  word-break: break-all;
+  color: #555;
+}
+
+body.qr-open {
+  overflow: hidden;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   body {
@@ -603,6 +734,15 @@ body.catalog-fullscreen {
     height: 28px;
     font-size: 0.8rem;
   }
+
+  .alphabet-letters {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .action-buttons {
+    justify-content: center;
+  }
 }
 
 @media (max-width: 480px) {
@@ -623,12 +763,22 @@ body.catalog-fullscreen {
     max-height: 400px;
   }
 
+  .selected-section .song-list {
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(160px, 1fr)
+    );
+    gap: 10px;
+    padding: 15px;
+  }
+
   .alphabet-nav {
     padding: 10px;
   }
 
   .alphabet-letters {
     gap: 5px;
+    overflow-x: auto;
   }
 
   .alphabet-letter {
@@ -640,5 +790,15 @@ body.catalog-fullscreen {
   .alphabet-label {
     font-size: 0.85rem;
     width: 100%;
+  }
+
+  .btn-action,
+  .btn-ghost {
+    width: 100%;
+    text-align: center;
+  }
+
+  .qr-modal__content {
+    padding: 20px 16px 24px;
   }
 }

@@ -6,7 +6,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
+    <meta name="theme-color" content="#667eea" />
     <title>iVideokê 2025 Picker</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
     <link
       rel="stylesheet"
       href="css/styles.css"
@@ -33,6 +36,30 @@
           <button
             class="filter-btn active"
             data-filter="all"
+            <button
+              id="copyListBtn"
+              class="btn-action"
+              title="Copiar lista formatada"
+              disabled
+            >
+              📝 Copiar Lista
+            </button>
+            <button
+              id="qrCodeBtn"
+              class="btn-action"
+              title="Mostrar QR Code"
+              disabled
+            >
+              🔲 QR Code
+            </button>
+            <button
+              id="exportBtn"
+              class="btn-action"
+              title="Exportar para impressão / PDF"
+              disabled
+            >
+              🖨️ Exportar
+            </button>
           >
             Todas
           </button>
@@ -124,6 +151,14 @@
             class="alphabet-letters"
             id="alphabetLetters"
           ></div>
+          <button
+            id="toggleHeadersBtn"
+            class="btn-ghost"
+            type="button"
+            title="Alternar cabeçalhos de artistas"
+          >
+            👁️ Artistas
+          </button>
         </div>
 
         <div
@@ -137,12 +172,46 @@
       </section>
     </div>
 
+    <footer class="site-footer">
+      Site baseado na
+      <a
+        href="pdf/ivideoke-2025.pdf"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        lista de músicas iVideokê 2025
+      </a>
+    </footer>
+
+    <!-- QR Code Modal -->
+    <div id="qrModal" class="qr-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
+      <div class="qr-modal__backdrop" data-dismiss="qr"></div>
+      <div class="qr-modal__content">
+        <button id="qrCloseBtn" class="qr-modal__close" type="button" aria-label="Fechar">×</button>
+        <h3 id="qrModalTitle">Compartilhar por QR Code</h3>
+        <canvas id="qrCanvas" width="320" height="320"></canvas>
+        <p id="qrLinkPreview" class="qr-modal__link"></p>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
 
     <!-- Scripts -->
     <script src="js/songs-data.js"></script>
     <script src="js/url-state.js"></script>
+    <script src="js/qr-generator.js"></script>
     <script src="js/app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("sw.js")
+            .catch((err) => {
+              console.warn("SW registration failed", err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>

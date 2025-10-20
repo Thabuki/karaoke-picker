@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Karaokê">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#667eea" />
+      <stop offset="100%" stop-color="#764ba2" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#grad)" />
+  <g fill="#ffffff" transform="translate(80 48)">
+    <rect x="40" y="0" width="24" height="104" rx="12" />
+    <path d="M 52 110 C 52 137 27 160 0 160 H 0 V 144 C 19 144 36 128 36 110 Z" opacity="0.8" />
+    <circle cx="52" cy="132" r="16" />
+  </g>
+</svg>
