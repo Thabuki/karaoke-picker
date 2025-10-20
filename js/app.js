@@ -5,7 +5,6 @@
 
 class KaraokePicker {
   constructor() {
-    // Convert country codes
     this.songs = this.processSongs(
       KARAOKE_SONGS
     );
@@ -16,15 +15,13 @@ class KaraokePicker {
     this.currentFilter = "all";
     this.searchQuery = "";
     this.isFullscreen = false;
-    this.showArtistHeaders = true;
     this.searchDebounceTimeout = null;
+    this.scrollDebounceTimeout = null;
     this.pendingRenderFrame = null;
     this.alphabetSongs = [];
     this.availableScrollHandler = null;
-
     this.initializeElements();
     this.attachEventListeners();
-    this.updateArtistToggleButton();
     this.updateShareButtonsState();
     this.loadStateFromURL();
     this.render();
@@ -35,15 +32,25 @@ class KaraokePicker {
    */
   processSongs(songs) {
     return songs
-      .map((song) => ({
-        ...song,
-        country:
-          song.country === "BRA"
-            ? "Nacional"
-            : "Internacional",
-      }))
+      .map(
+        ({
+          id,
+          code,
+          title,
+          artist,
+          country,
+        }) => ({
+          id,
+          code,
+          title,
+          artist,
+          country:
+            country === "BRA"
+              ? "Nacional"
+              : "Internacional",
+        })
+      )
       .sort((a, b) => {
-        // Sort by country first (Nacional before Internacional)
         if (
           a.country === "Nacional" &&
           b.country !== "Nacional"
@@ -55,7 +62,6 @@ class KaraokePicker {
         )
           return 1;
 
-        // Then sort alphabetically by artist
         return a.artist.localeCompare(
           b.artist,
           "pt-BR"
@@ -91,18 +97,6 @@ class KaraokePicker {
       document.getElementById(
         "copyLinkBtn"
       );
-    this.copyListBtn =
-      document.getElementById(
-        "copyListBtn"
-      );
-    this.qrCodeBtn =
-      document.getElementById(
-        "qrCodeBtn"
-      );
-    this.exportBtn =
-      document.getElementById(
-        "exportBtn"
-      );
     this.clearAllBtn =
       document.getElementById(
         "clearAllBtn"
@@ -117,6 +111,10 @@ class KaraokePicker {
       document.getElementById(
         "alphabetLetters"
       );
+    this.currentArtistBanner =
+      document.getElementById(
+        "currentArtistBanner"
+      );
     this.availableSection =
       document.getElementById(
         "availableSection"
@@ -125,38 +123,12 @@ class KaraokePicker {
       document.getElementById(
         "fullscreenBtn"
       );
-    this.toggleHeadersBtn =
-      document.getElementById(
-        "toggleHeadersBtn"
-      );
-    this.qrModal =
-      document.getElementById(
-        "qrModal"
-      );
-    this.qrCanvas =
-      document.getElementById(
-        "qrCanvas"
-      );
-    this.qrCloseBtn =
-      document.getElementById(
-        "qrCloseBtn"
-      );
-    this.qrLinkPreview =
-      document.getElementById(
-        "qrLinkPreview"
-      );
-    this.qrBackdrop = this.qrModal
-      ? this.qrModal.querySelector(
-          "[data-dismiss='qr']"
-        )
-      : null;
   }
 
   /**
    * Attach event listeners
    */
   attachEventListeners() {
-    // Search input
     this.searchInput.addEventListener(
       "input",
       (e) => {
@@ -166,7 +138,6 @@ class KaraokePicker {
       }
     );
 
-    // Filter buttons
     this.filterButtons.forEach(
       (btn) => {
         btn.addEventListener(
@@ -189,47 +160,21 @@ class KaraokePicker {
       }
     );
 
-    // Copy link button
     this.copyLinkBtn.addEventListener(
       "click",
       () => this.copyShareableLink()
     );
 
-    if (this.copyListBtn) {
-      this.copyListBtn.addEventListener(
-        "click",
-        () => this.copySelectedDetails()
-      );
-    }
-
-    if (this.qrCodeBtn) {
-      this.qrCodeBtn.addEventListener(
-        "click",
-        () => this.showQRCodeModal()
-      );
-    }
-
-    if (this.exportBtn) {
-      this.exportBtn.addEventListener(
-        "click",
-        () =>
-          this.exportSelectedToPrint()
-      );
-    }
-
-    // Clear all button
     this.clearAllBtn.addEventListener(
       "click",
       () => this.clearAllSelections()
     );
 
-    // Fullscreen toggle button
     this.fullscreenBtn.addEventListener(
       "click",
       () => this.toggleFullscreen()
     );
 
-    // ESC key to exit fullscreen
     document.addEventListener(
       "keydown",
       (e) => {
@@ -269,51 +214,9 @@ class KaraokePicker {
           this.focusSearchInput();
           e.preventDefault();
         }
-
-        if (
-          e.key === "Escape" &&
-          this.isQRModalOpen()
-        ) {
-          this.hideQRCodeModal();
-        }
       }
     );
 
-    if (this.toggleHeadersBtn) {
-      this.toggleHeadersBtn.addEventListener(
-        "click",
-        () => this.toggleArtistHeaders()
-      );
-    }
-
-    if (this.qrCloseBtn) {
-      this.qrCloseBtn.addEventListener(
-        "click",
-        () => this.hideQRCodeModal()
-      );
-    }
-
-    if (this.qrBackdrop) {
-      this.qrBackdrop.addEventListener(
-        "click",
-        () => this.hideQRCodeModal()
-      );
-    }
-
-    if (this.qrModal) {
-      this.qrModal.addEventListener(
-        "click",
-        (event) => {
-          if (
-            event.target ===
-            this.qrModal
-          ) {
-            this.hideQRCodeModal();
-          }
-        }
-      );
-    }
-    // Handle browser back/forward buttons
     window.addEventListener(
       "popstate",
       () => {
@@ -334,7 +237,6 @@ class KaraokePicker {
       return;
     }
 
-    // Find songs by ID
     const selectedSongsFromURL = [];
     selectedIds.forEach((id) => {
       const song = this.songs.find(
@@ -424,9 +326,6 @@ class KaraokePicker {
       this.selectedSongs = [];
       this.updateAvailableSongs();
       this.updateURLState();
-      if (this.isQRModalOpen()) {
-        this.hideQRCodeModal();
-      }
       this.render();
       this.showToast(
         "🗑️ Todas as músicas foram removidas!",
@@ -513,7 +412,6 @@ class KaraokePicker {
   getFilteredSongs() {
     let filtered = this.availableSongs;
 
-    // Apply country filter
     if (this.currentFilter !== "all") {
       filtered = filtered.filter(
         (song) =>
@@ -522,7 +420,6 @@ class KaraokePicker {
       );
     }
 
-    // Apply search query
     if (this.searchQuery) {
       filtered = filtered.filter(
         (song) => {
@@ -567,7 +464,6 @@ class KaraokePicker {
     const escapedCountry =
       this.escapeHtml(song.country);
 
-    // Abbreviate country name for selected songs
     const countryLabel = isSelected
       ? song.country === "Nacional"
         ? "N"
@@ -633,7 +529,6 @@ class KaraokePicker {
       "empty-state"
     );
 
-    // Sort selected songs the same way as available songs
     const sortedSelected =
       this.getSortedSelectedSongs();
 
@@ -685,6 +580,13 @@ class KaraokePicker {
 
     this.cancelAvailableRender();
 
+    if (this.scrollDebounceTimeout) {
+      clearTimeout(
+        this.scrollDebounceTimeout
+      );
+      this.scrollDebounceTimeout = null;
+    }
+
     if (this.availableScrollHandler) {
       this.availableList.removeEventListener(
         "scroll",
@@ -697,9 +599,6 @@ class KaraokePicker {
     this.alphabetSongs = filtered;
 
     if (filtered.length === 0) {
-      this.availableList.classList.remove(
-        "headers-hidden"
-      );
       this.availableList.innerHTML = `
         <div class="empty-state">
           <p class="empty-message">
@@ -721,15 +620,6 @@ class KaraokePicker {
         : 0;
 
     this.availableList.innerHTML = "";
-    if (this.showArtistHeaders) {
-      this.availableList.classList.remove(
-        "headers-hidden"
-      );
-    } else {
-      this.availableList.classList.add(
-        "headers-hidden"
-      );
-    }
 
     let index = 0;
     let lastArtist = null;
@@ -747,7 +637,6 @@ class KaraokePicker {
       ) {
         const song = filtered[index];
         if (
-          this.showArtistHeaders &&
           song.artist !== lastArtist
         ) {
           lastArtist = song.artist;
@@ -756,11 +645,6 @@ class KaraokePicker {
               song.artist
             )}</div>`
           );
-        } else if (
-          !this.showArtistHeaders &&
-          song.artist !== lastArtist
-        ) {
-          lastArtist = song.artist;
         }
 
         buffer.push(
@@ -810,7 +694,6 @@ class KaraokePicker {
     ];
     const availableLetters = new Set();
 
-    // Find which letters have artists
     songs.forEach((song) => {
       const firstChar = song.artist
         .charAt(0)
@@ -824,7 +707,6 @@ class KaraokePicker {
       }
     });
 
-    // Build alphabet buttons
     const html = alphabet
       .map((letter) => {
         const disabled =
@@ -838,7 +720,6 @@ class KaraokePicker {
     this.alphabetLetters.innerHTML =
       html;
 
-    // Add click handlers
     this.alphabetLetters
       .querySelectorAll(
         ".alphabet-letter:not(.disabled)"
@@ -857,10 +738,24 @@ class KaraokePicker {
         );
       });
 
-    // Setup scroll listener to highlight current letter
     this.availableScrollHandler =
       () => {
-        this.updateCurrentLetter(songs);
+        // Debounce scroll updates to avoid excessive work
+        if (
+          this.scrollDebounceTimeout
+        ) {
+          clearTimeout(
+            this.scrollDebounceTimeout
+          );
+        }
+        this.scrollDebounceTimeout =
+          setTimeout(() => {
+            this.updateCurrentLetter(
+              songs
+            );
+            this.scrollDebounceTimeout =
+              null;
+          }, 100);
       };
 
     this.availableList.addEventListener(
@@ -868,7 +763,6 @@ class KaraokePicker {
       this.availableScrollHandler
     );
 
-    // Initial highlight
     setTimeout(
       () =>
         this.updateCurrentLetter(songs),
@@ -887,7 +781,6 @@ class KaraokePicker {
       "Nacional";
 
     if (letter === lastLetter) {
-      // Same letter clicked twice - toggle country
       const nextCountry =
         lastCountry === "Nacional"
           ? "Internacional"
@@ -900,7 +793,6 @@ class KaraokePicker {
       this.lastClickedCountry =
         nextCountry;
     } else {
-      // Different letter - keep the same country preference
       this.scrollToLetter(
         letter,
         songs,
@@ -915,40 +807,76 @@ class KaraokePicker {
    * Update current letter highlight based on scroll position
    */
   updateCurrentLetter(songs) {
-    if (!songs || songs.length === 0)
-      return;
+    try {
+      if (this.isUpdatingLetter) return;
+      this.isUpdatingLetter = true;
+      if (
+        !songs ||
+        songs.length === 0
+      ) {
+        this.updateCurrentArtistBanner(
+          null
+        );
+        return;
+      }
+      if (
+        !this.availableList ||
+        !this.alphabetLetters
+      ) {
+        this.updateCurrentArtistBanner(
+          null
+        );
+        return;
+      }
 
-    const scrollTop =
-      this.availableList.scrollTop;
-    const songElements =
-      this.availableList.querySelectorAll(
-        ".song-item"
+      const scrollTop =
+        this.availableList.scrollTop;
+      const songElements =
+        this.availableList.querySelectorAll(
+          ".song-item"
+        );
+
+      let currentSong = null;
+      for (const element of songElements) {
+        const elementTop =
+          element.offsetTop -
+          this.availableList.offsetTop;
+        if (
+          elementTop >=
+          scrollTop - 50
+        ) {
+          const artistElement =
+            element.querySelector(
+              ".song-artist"
+            );
+          if (!artistElement) continue;
+
+          const artistText =
+            artistElement.textContent.replace(
+              "🎵 ",
+              ""
+            );
+          currentSong = songs.find(
+            (s) =>
+              s.artist === artistText
+          );
+          if (currentSong) {
+            break;
+          }
+        }
+      }
+
+      if (!currentSong) {
+        this.updateCurrentArtistBanner(
+          null
+        );
+        return;
+      }
+
+      this.updateCurrentArtistBanner(
+        currentSong
       );
 
-    // Find the first visible song
-    let currentSong = null;
-    for (let element of songElements) {
-      const elementTop =
-        element.offsetTop -
-        this.availableList.offsetTop;
-      if (
-        elementTop >=
-        scrollTop - 50
-      ) {
-        const artistText = element
-          .querySelector(".song-artist")
-          .textContent.replace(
-            "🎵 ",
-            ""
-          );
-        currentSong = songs.find(
-          (s) => s.artist === artistText
-        );
-        break;
-      }
-    }
-
-    if (currentSong) {
       const firstChar =
         currentSong.artist
           .charAt(0)
@@ -959,7 +887,6 @@ class KaraokePicker {
         ? "#"
         : firstChar;
 
-      // Remove all active classes
       this.alphabetLetters
         .querySelectorAll(
           ".alphabet-letter"
@@ -972,7 +899,6 @@ class KaraokePicker {
           );
         });
 
-      // Add appropriate class based on country
       const btn =
         this.alphabetLetters.querySelector(
           `[data-letter="${letter}"]`
@@ -994,7 +920,53 @@ class KaraokePicker {
           );
         }
       }
+    } catch (error) {
+      console.error(
+        "Error in updateCurrentLetter:",
+        error
+      );
+    } finally {
+      this.isUpdatingLetter = false;
     }
+  }
+
+  updateCurrentArtistBanner(song) {
+    if (!this.currentArtistBanner) {
+      return;
+    }
+
+    if (!song) {
+      this.currentArtistBanner.textContent =
+        "";
+      this.currentArtistBanner.classList.add(
+        "hidden"
+      );
+      this.currentArtistBanner.removeAttribute(
+        "data-country"
+      );
+      this.currentArtistBanner.removeAttribute(
+        "data-letter"
+      );
+      return;
+    }
+
+  this.currentArtistBanner.textContent = song.artist;
+    this.currentArtistBanner.classList.remove(
+      "hidden"
+    );
+    this.currentArtistBanner.setAttribute(
+      "data-country",
+      song.country
+    );
+    const letter = song.artist
+      .charAt(0)
+      .toUpperCase();
+    this.currentArtistBanner.setAttribute(
+      "data-letter",
+      /[0-9]/.test(letter)
+        ? "#"
+        : letter
+    );
   }
 
   /**
@@ -1005,115 +977,139 @@ class KaraokePicker {
     songs,
     preferredCountry = "Nacional"
   ) {
-    // Find song with specified letter and country
-    let targetSong = null;
+    try {
+      if (
+        !songs ||
+        songs.length === 0
+      ) {
+        return;
+      }
+      if (!this.availableList) {
+        return;
+      }
 
-    if (letter === "#") {
-      // Numbers
-      targetSong = songs.find(
-        (song) =>
-          /[0-9]/.test(
-            song.artist.charAt(0)
-          ) &&
-          song.country ===
-            preferredCountry
-      );
-      // If not found in preferred country, try the other
-      if (!targetSong) {
+      let targetSong = null;
+
+      if (letter === "#") {
         targetSong = songs.find(
           (song) =>
             /[0-9]/.test(
               song.artist.charAt(0)
-            )
+            ) &&
+            song.country ===
+              preferredCountry
         );
-      }
-    } else {
-      targetSong = songs.find(
-        (song) =>
-          song.artist
-            .charAt(0)
-            .toUpperCase() === letter &&
-          song.country ===
-            preferredCountry
-      );
-      // If not found in preferred country, try the other
-      if (!targetSong) {
+        if (!targetSong) {
+          targetSong = songs.find(
+            (song) =>
+              /[0-9]/.test(
+                song.artist.charAt(0)
+              )
+          );
+        }
+      } else {
         targetSong = songs.find(
           (song) =>
             song.artist
               .charAt(0)
-              .toUpperCase() === letter
+              .toUpperCase() ===
+              letter &&
+            song.country ===
+              preferredCountry
         );
+        if (!targetSong) {
+          targetSong = songs.find(
+            (song) =>
+              song.artist
+                .charAt(0)
+                .toUpperCase() ===
+              letter
+          );
+        }
       }
-    }
 
-    if (!targetSong) return;
+      if (!targetSong) {
+        return;
+      }
 
-    // Find the song element in the DOM
-    const songElements =
-      this.availableList.querySelectorAll(
-        ".song-item"
-      );
-    for (
-      let i = 0;
-      i < songElements.length;
-      i++
-    ) {
-      const element = songElements[i];
-      const artistText = element
-        .querySelector(".song-artist")
-        .textContent.replace("🎵 ", "");
-      if (
-        artistText === targetSong.artist
-      ) {
-        // Scroll the list to this element
-        const elementTop =
-          element.offsetTop -
-          this.availableList.offsetTop;
-        this.availableList.scrollTo({
-          top: elementTop - 20,
-          behavior: "smooth",
-        });
+      const songElements =
+        this.availableList.querySelectorAll(
+          ".song-item"
+        );
+      for (const element of songElements) {
+        const artistElement =
+          element.querySelector(
+            ".song-artist"
+          );
+        if (!artistElement) continue;
 
-        // Update button highlighting
-        this.alphabetLetters
-          .querySelectorAll(
-            ".alphabet-letter"
-          )
-          .forEach((btn) => {
-            btn.classList.remove(
-              "active-nacional",
-              "active-internacional",
-              "active-scroll"
-            );
+        const artistText =
+          artistElement.textContent.replace(
+            "🎵 ",
+            ""
+          );
+        if (
+          artistText ===
+          targetSong.artist
+        ) {
+          element.scrollIntoView({
+            block: "start",
+            behavior: "auto",
           });
 
-        const letterBtn =
-          this.alphabetLetters.querySelector(
-            `[data-letter="${letter}"]`
-          );
-        letterBtn.classList.add(
-          "active-scroll"
-        );
-        if (
-          targetSong.country ===
-          "Nacional"
-        ) {
-          letterBtn.classList.add(
-            "active-nacional"
-          );
-          this.lastClickedCountry =
-            "Nacional";
-        } else {
-          letterBtn.classList.add(
-            "active-internacional"
-          );
-          this.lastClickedCountry =
-            "Internacional";
-        }
+          if (this.alphabetLetters) {
+            this.alphabetLetters
+              .querySelectorAll(
+                ".alphabet-letter"
+              )
+              .forEach((btn) => {
+                btn.classList.remove(
+                  "active-nacional",
+                  "active-internacional",
+                  "active-scroll"
+                );
+              });
 
-        break;
+            const letterBtn =
+              this.alphabetLetters.querySelector(
+                `[data-letter="${letter}"]`
+              );
+            if (letterBtn) {
+              letterBtn.classList.add(
+                "active-scroll"
+              );
+              if (
+                targetSong.country ===
+                "Nacional"
+              ) {
+                letterBtn.classList.add(
+                  "active-nacional"
+                );
+              } else {
+                letterBtn.classList.add(
+                  "active-internacional"
+                );
+              }
+            }
+          }
+
+          this.lastClickedCountry =
+            targetSong.country ===
+            "Nacional"
+              ? "Nacional"
+              : "Internacional";
+          this.updateCurrentArtistBanner(
+            targetSong
+          );
+
+          break;
+        }
       }
+    } catch (error) {
+      console.error(
+        "Error in scrollToLetter:",
+        error
+      );
     }
   }
 
@@ -1152,169 +1148,6 @@ class KaraokePicker {
     }
   }
 
-  toggleArtistHeaders() {
-    this.showArtistHeaders =
-      !this.showArtistHeaders;
-    this.updateArtistToggleButton();
-    this.renderAvailableList({
-      preserveScroll: true,
-      immediate: true,
-    });
-  }
-
-  updateArtistToggleButton() {
-    if (!this.toggleHeadersBtn) return;
-    const label = this.showArtistHeaders
-      ? "🙈 Ocultar artistas"
-      : "👁️ Mostrar artistas";
-    this.toggleHeadersBtn.textContent =
-      label;
-    this.toggleHeadersBtn.setAttribute(
-      "aria-pressed",
-      this.showArtistHeaders
-        ? "true"
-        : "false"
-    );
-  }
-
-  isQRModalOpen() {
-    return (
-      this.qrModal &&
-      !this.qrModal.classList.contains(
-        "hidden"
-      )
-    );
-  }
-
-  showQRCodeModal() {
-    if (
-      !this.qrModal ||
-      !this.qrCanvas
-    ) {
-      return;
-    }
-
-    if (
-      !this.selectedSongs ||
-      this.selectedSongs.length === 0
-    ) {
-      this.showToast(
-        "Selecione ao menos uma música para gerar o QR Code",
-        "error"
-      );
-      return;
-    }
-
-    const selectedIds =
-      this.selectedSongs.map(
-        (s) => s.id
-      );
-    const url =
-      URLState.generateShareableURL(
-        selectedIds
-      );
-
-    if (
-      typeof window.SimpleQR ===
-      "undefined"
-    ) {
-      this.showToast(
-        "QR Code indisponível no momento",
-        "error"
-      );
-      return;
-    }
-
-    try {
-      window.SimpleQR.renderToCanvas(
-        this.qrCanvas,
-        url,
-        { margin: 3 }
-      );
-      if (this.qrLinkPreview) {
-        this.qrLinkPreview.textContent =
-          url;
-      }
-      this.qrModal.classList.remove(
-        "hidden"
-      );
-      document.body.classList.add(
-        "qr-open"
-      );
-    } catch (error) {
-      console.error(error);
-      this.showToast(
-        "Não foi possível gerar o QR Code",
-        "error"
-      );
-    }
-  }
-
-  hideQRCodeModal() {
-    if (!this.qrModal) return;
-    this.qrModal.classList.add(
-      "hidden"
-    );
-    document.body.classList.remove(
-      "qr-open"
-    );
-  }
-
-  async copySelectedDetails() {
-    if (
-      this.selectedSongs.length === 0
-    ) {
-      this.showToast(
-        "Nenhuma música selecionada ainda",
-        "error"
-      );
-      return;
-    }
-
-    const sorted =
-      this.getSortedSelectedSongs();
-    const lines = sorted.map(
-      (song, index) => {
-        return `${index + 1}. ${
-          song.title
-        } — ${song.artist} (${
-          song.country
-        }) [#${song.code}]`;
-      }
-    );
-    const link =
-      URLState.generateShareableURL(
-        sorted.map((s) => s.id)
-      );
-    const payload = `🎤 iVideokê 2025 — Lista Selecionada\n\n${lines.join(
-      "\n"
-    )}\n\n🌐 Link: ${link}`;
-
-    if (
-      navigator.clipboard &&
-      typeof navigator.clipboard
-        .writeText === "function"
-    ) {
-      try {
-        await navigator.clipboard.writeText(
-          payload
-        );
-        this.showToast(
-          "📝 Lista copiada para a área de transferência!",
-          "success"
-        );
-        return;
-      } catch (error) {
-        // continue to fallback
-      }
-    }
-
-    this.fallbackCopy(
-      payload,
-      "📝 Lista copiada!"
-    );
-  }
-
   fallbackCopy(text, successMessage) {
     const textarea =
       document.createElement(
@@ -1348,113 +1181,6 @@ class KaraokePicker {
     document.body.removeChild(textarea);
   }
 
-  exportSelectedToPrint() {
-    if (
-      this.selectedSongs.length === 0
-    ) {
-      this.showToast(
-        "Nenhuma música para exportar",
-        "error"
-      );
-      return;
-    }
-
-    const sorted =
-      this.getSortedSelectedSongs();
-    const link =
-      URLState.generateShareableURL(
-        sorted.map((s) => s.id)
-      );
-
-    const rows = sorted
-      .map((song, index) => {
-        return `
-          <tr>
-            <td>${index + 1}</td>
-            <td>${this.escapeHtml(
-              song.title
-            )}</td>
-            <td>${this.escapeHtml(
-              song.artist
-            )}</td>
-            <td>${song.country}</td>
-            <td>#${song.code}</td>
-          </tr>
-        `;
-      })
-      .join("");
-
-    const printHtml = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <title>Lista de Músicas Selecionadas</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 40px; color: #222; }
-    h1 { text-align: center; margin-bottom: 10px; }
-    h2 { text-align: center; margin-top: 0; font-size: 1rem; color: #555; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; font-size: 0.95rem; }
-    th { background: #f0f3ff; }
-    tfoot td { font-weight: 600; }
-    @media print { body { margin: 10mm; } h1 { font-size: 1.6rem; } }
-  </style>
-</head>
-<body>
-  <h1>🎤 iVideokê 2025 — Lista Selecionada</h1>
-  <h2>Compartilhe: <span>${this.escapeHtml(
-    link
-  )}</span></h2>
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Música</th>
-        <th>Artista</th>
-        <th>País</th>
-        <th>Código</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rows}
-    </tbody>
-    <tfoot>
-      <tr>
-        <td colspan="5">Total: ${
-          sorted.length
-        } músicas</td>
-      </tr>
-    </tfoot>
-  </table>
-</body>
-</html>`;
-
-    const printWindow = window.open(
-      "",
-      "_blank",
-      "noopener,width=900,height=700"
-    );
-
-    if (!printWindow) {
-      this.showToast(
-        "Permita pop-ups para exportar",
-        "error"
-      );
-      return;
-    }
-
-    printWindow.document.open();
-    printWindow.document.write(
-      printHtml
-    );
-    printWindow.document.close();
-
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
-  }
-
   cancelAvailableRender() {
     if (
       this.pendingRenderFrame !== null
@@ -1470,9 +1196,8 @@ class KaraokePicker {
     const hasSelection =
       this.selectedSongs.length > 0;
     const buttons = [
-      this.copyListBtn,
-      this.qrCodeBtn,
-      this.exportBtn,
+      this.copyLinkBtn,
+      this.clearAllBtn,
     ];
     buttons.forEach((btn) => {
       if (!btn) return;

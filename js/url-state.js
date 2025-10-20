@@ -13,7 +13,6 @@ const URLState = {
       !songIds ||
       songIds.length === 0
     ) {
-      // Clear hash if no songs selected
       history.replaceState(
         null,
         "",
@@ -22,7 +21,6 @@ const URLState = {
       return;
     }
 
-    // Encode as comma-separated list in base64 for shorter URLs
     const idsString = songIds.join(",");
     const encoded = btoa(idsString);
     history.replaceState(
@@ -44,14 +42,12 @@ const URLState = {
     }
 
     try {
-      // Remove '#s=' prefix
       const encoded = hash.substring(3);
       const decoded = atob(encoded);
       const ids = decoded
         .split(",")
         .map((id) => parseInt(id, 10));
 
-      // Filter out invalid IDs
       return ids.filter(
         (id) => !isNaN(id) && id > 0
       );
@@ -85,11 +81,3 @@ const URLState = {
     return `${window.location.origin}${window.location.pathname}#s=${encoded}`;
   },
 };
-
-// Export for use in other modules
-if (
-  typeof module !== "undefined" &&
-  module.exports
-) {
-  module.exports = URLState;
-}
