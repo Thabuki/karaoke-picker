@@ -950,7 +950,8 @@ class KaraokePicker {
       return;
     }
 
-  this.currentArtistBanner.textContent = song.artist;
+    this.currentArtistBanner.textContent =
+      song.artist;
     this.currentArtistBanner.classList.remove(
       "hidden"
     );
