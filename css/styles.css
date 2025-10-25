@@ -338,6 +338,54 @@ body.catalog-fullscreen {
   grid-auto-rows: minmax(120px, auto);
 }
 
+.selected-footer {
+  padding: 0 20px 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.to-search-btn {
+  padding: 10px 20px;
+  background: #667eea;
+  color: #fff;
+  border: 2px solid #667eea;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.to-search-btn:hover {
+  background: #5568d3;
+  border-color: #5568d3;
+}
+
+/* Make the selected footer sticky at all widths */
+.selected-footer {
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+  padding: 10px 20px 20px;
+  border-top: 1px solid #eee;
+  z-index: 2;
+}
+
+@media (max-width: 768px) {
+  .selected-footer {
+    position: sticky;
+    bottom: 0;
+    background: #ffffff;
+    padding: 10px 15px;
+    border-top: 1px solid #eee;
+    z-index: 2;
+  }
+  .to-search-btn {
+    width: 100%;
+  }
+}
+
 .selected-section
   .song-list.empty-state {
   display: flex;

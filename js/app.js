@@ -73,7 +73,6 @@ class KaraokePicker {
           b.country === "Nacional"
         )
           return 1;
-
         return a.artist.localeCompare(
           b.artist,
           "pt-BR"
@@ -113,6 +112,10 @@ class KaraokePicker {
       document.getElementById(
         "clearAllBtn"
       );
+    this.selectedSection =
+      document.getElementById(
+        "selectedSection"
+      );
     this.filterButtons =
       document.querySelectorAll(
         ".filter-btn"
@@ -134,6 +137,14 @@ class KaraokePicker {
     this.fullscreenBtn =
       document.getElementById(
         "fullscreenBtn"
+      );
+    this.toSearchBtn =
+      document.getElementById(
+        "toSearchBtn"
+      );
+    this.selectedFooter =
+      document.querySelector(
+        ".selected-footer"
       );
   }
 
@@ -176,16 +187,35 @@ class KaraokePicker {
       "click",
       () => this.copyShareableLink()
     );
-
     this.clearAllBtn.addEventListener(
       "click",
       () => this.clearAllSelections()
     );
-
     this.fullscreenBtn.addEventListener(
       "click",
       () => this.toggleFullscreen()
     );
+
+    if (this.toSearchBtn) {
+      this.toSearchBtn.addEventListener(
+        "click",
+        () => {
+          if (this.searchInput) {
+            try {
+              this.searchInput.scrollIntoView(
+                {
+                  behavior: "smooth",
+                  block: "center",
+                }
+              );
+            } catch (e) {
+              // scrollIntoView may not be available in some environments; ignore
+            }
+            this.focusSearchInput();
+          }
+        }
+      );
+    }
 
     document.addEventListener(
       "keydown",
@@ -238,6 +268,25 @@ class KaraokePicker {
           this.loadStateFromStorage();
         }
         this.render();
+      }
+    );
+    // Recompute button visibility on resize with debounce
+    window.addEventListener(
+      "resize",
+      () => {
+        if (
+          this.resizeDebounceTimeout
+        ) {
+          clearTimeout(
+            this.resizeDebounceTimeout
+          );
+        }
+        this.resizeDebounceTimeout =
+          setTimeout(() => {
+            this.updateSearchButtonVisibility();
+            this.resizeDebounceTimeout =
+              null;
+          }, 150);
       }
     );
   }
@@ -337,16 +386,115 @@ class KaraokePicker {
    * Select a song (move from available to selected)
    */
   selectSong(songId) {
+    // Find song in available list
     const song =
       this.availableSongs.find(
         (s) => s.id === songId
       );
     if (!song) return;
 
+    // Update state
     this.selectedSongs.push(song);
     this.updateAvailableSongs();
     this.updateURLState();
-    this.render();
+    this.renderSelectedList();
+
+    // Surgical DOM removal with scroll compensation
+    const container =
+      this.availableList;
+    if (container) {
+      const item =
+        container.querySelector(
+          `.song-item[data-id="${song.id}"]`
+        );
+
+      // Capture an anchor element near the top of the viewport to preserve position
+      let anchorEl = null;
+      let anchorOffset = 0;
+      if (item) {
+        const containerRect =
+          container.getBoundingClientRect();
+        const candidates =
+          container.querySelectorAll(
+            ".song-item"
+          );
+        for (const el of candidates) {
+          if (el === item) continue; // skip the one we will remove
+          const r =
+            el.getBoundingClientRect();
+          if (
+            r.bottom >
+            containerRect.top + 2
+          ) {
+            anchorEl = el;
+            anchorOffset =
+              r.top - containerRect.top;
+            break;
+          }
+        }
+      }
+
+      if (item && item.parentElement) {
+        const artistText = song.artist;
+        item.parentElement.removeChild(
+          item
+        );
+        // If no more songs for this artist, remove header
+        const anyLeft = Array.from(
+          this.availableList.querySelectorAll(
+            ".song-artist"
+          )
+        ).some(
+          (el) =>
+            el.textContent.replace(
+              "🎵 ",
+              ""
+            ) === artistText
+        );
+        if (!anyLeft) {
+          const headers =
+            this.availableList.querySelectorAll(
+              ".artist-header"
+            );
+          for (const h of headers) {
+            if (
+              h.textContent ===
+              artistText
+            ) {
+              h.remove();
+              break;
+            }
+          }
+        }
+        // After removal, compensate scroll so the viewport doesn't jump
+        if (
+          anchorEl &&
+          container.contains(anchorEl)
+        ) {
+          const containerRect2 =
+            container.getBoundingClientRect();
+          const newTop =
+            anchorEl.getBoundingClientRect()
+              .top - containerRect2.top;
+          const delta =
+            newTop - anchorOffset;
+          // Adjust in opposite direction to keep anchor at same visual offset
+          container.scrollTop += delta;
+        }
+      }
+    }
+
+    // Update available count and current letter/banner
+    const currentFiltered =
+      this.getFilteredSongs();
+    if (this.availableCount) {
+      this.availableCount.textContent =
+        currentFiltered.length;
+    }
+    this.updateCurrentLetter(
+      currentFiltered
+    );
+
     this.showToast(
       `✅ "${song.title}" adicionada!`,
       "success"
@@ -363,13 +511,205 @@ class KaraokePicker {
       );
     if (!song) return;
 
+    // Remove from selected and update data
     this.selectedSongs =
       this.selectedSongs.filter(
         (s) => s.id !== songId
       );
     this.updateAvailableSongs();
     this.updateURLState();
-    this.render();
+    this.renderSelectedList();
+
+    // Determine if the song should be visible under current filters/search
+    const matchesFilter =
+      (this.currentFilter === "all" ||
+        song.country ===
+          this.currentFilter) &&
+      (!this.searchQuery ||
+        song.title
+          .toLowerCase()
+          .includes(this.searchQuery) ||
+        song.artist
+          .toLowerCase()
+          .includes(this.searchQuery) ||
+        (song.code || "")
+          .toLowerCase()
+          .includes(this.searchQuery));
+
+    const list = this.availableList;
+    if (!list || !matchesFilter) {
+      // If not visible or list missing, just refresh counts/highlight
+      const filtered =
+        this.getFilteredSongs();
+      if (this.availableCount)
+        this.availableCount.textContent =
+          filtered.length;
+      this.updateCurrentLetter(
+        filtered
+      );
+      if (!list)
+        this.renderAvailableList({
+          preserveScroll: true,
+        });
+      this.showToast(
+        `❌ "${song.title}" removida!`,
+        "error"
+      );
+      return;
+    }
+
+    // Insert into DOM at correct position without full re-render
+    const filtered =
+      this.getFilteredSongs();
+    const insertIndex =
+      filtered.findIndex(
+        (s) => s.id === song.id
+      );
+
+    // Find reference element: next item's DOM node to insert before; else after previous
+    let beforeNode = null;
+    for (
+      let i = insertIndex + 1;
+      i < filtered.length;
+      i++
+    ) {
+      const node = list.querySelector(
+        `.song-item[data-id="${filtered[i].id}"]`
+      );
+      if (node) {
+        beforeNode = node;
+        break;
+      }
+    }
+    let afterNode = null;
+    if (!beforeNode) {
+      for (
+        let i = insertIndex - 1;
+        i >= 0;
+        i--
+      ) {
+        const node = list.querySelector(
+          `.song-item[data-id="${filtered[i].id}"]`
+        );
+        if (node) {
+          afterNode = node;
+          break;
+        }
+      }
+    }
+
+    // Build DOM node for the song
+    const html = this.createSongHTML(
+      song,
+      false
+    );
+    const temp =
+      document.createElement("div");
+    temp.innerHTML = html.trim();
+    const itemNode = temp.firstChild;
+
+    // If this artist has no visible songs yet, add a header before the item
+    const hasArtistVisible = Array.from(
+      list.querySelectorAll(
+        ".song-item"
+      )
+    ).some((el) => {
+      const a = el.querySelector(
+        ".song-artist"
+      );
+      return (
+        a &&
+        a.textContent.replace(
+          "🎵 ",
+          ""
+        ) === song.artist
+      );
+    });
+    if (!hasArtistVisible) {
+      const header =
+        document.createElement("div");
+      header.className =
+        "artist-header";
+      header.textContent = song.artist;
+      if (beforeNode)
+        list.insertBefore(
+          header,
+          beforeNode
+        );
+      else if (
+        afterNode &&
+        afterNode.parentElement
+      )
+        afterNode.parentElement.insertBefore(
+          header,
+          afterNode.nextSibling
+        );
+      else list.appendChild(header);
+    }
+
+    // Preserve scroll position using an anchor
+    const container = list;
+    const containerRect =
+      container.getBoundingClientRect();
+    const firstVisible = Array.from(
+      container.querySelectorAll(
+        ".song-item"
+      )
+    ).find((el) => {
+      const r =
+        el.getBoundingClientRect();
+      return (
+        r.bottom > containerRect.top + 2
+      );
+    });
+    const anchorEl =
+      firstVisible || null;
+    const anchorOffset = anchorEl
+      ? anchorEl.getBoundingClientRect()
+          .top - containerRect.top
+      : 0;
+
+    // Insert item
+    if (beforeNode)
+      list.insertBefore(
+        itemNode,
+        beforeNode
+      );
+    else if (
+      afterNode &&
+      afterNode.parentElement
+    )
+      afterNode.parentElement.insertBefore(
+        itemNode,
+        afterNode.nextSibling
+      );
+    else list.appendChild(itemNode);
+
+    // Restore scroll compensation
+    if (
+      anchorEl &&
+      container.contains(anchorEl)
+    ) {
+      const containerRect2 =
+        container.getBoundingClientRect();
+      const newTop =
+        anchorEl.getBoundingClientRect()
+          .top - containerRect2.top;
+      const delta =
+        newTop - anchorOffset;
+      container.scrollTop += delta;
+    }
+
+    // Refresh counts and highlight
+    const filteredAfter =
+      this.getFilteredSongs();
+    if (this.availableCount)
+      this.availableCount.textContent =
+        filteredAfter.length;
+    this.updateCurrentLetter(
+      filteredAfter
+    );
+
     this.showToast(
       `❌ "${song.title}" removida!`,
       "error"
@@ -570,6 +910,14 @@ class KaraokePicker {
       : "selectSong";
     const escapedCountry =
       this.escapeHtml(song.country);
+    const firstChar = song.artist
+      .charAt(0)
+      .toUpperCase();
+    const letter = /[0-9]/.test(
+      firstChar
+    )
+      ? "#"
+      : firstChar;
 
     const countryLabel = isSelected
       ? song.country === "Nacional"
@@ -578,7 +926,13 @@ class KaraokePicker {
       : song.country;
 
     return `
-      <div class="song-item" onclick="app.${clickHandler}(${
+      <div class="song-item" data-id="${
+        song.id
+      }" data-artist="${this.escapeHtml(
+      song.artist
+    )}" data-letter="${letter}" data-country="${
+      song.country
+    }" onclick="app.${clickHandler}(${
       song.id
     })">
         <div class="song-info">
@@ -621,6 +975,11 @@ class KaraokePicker {
     if (
       this.selectedSongs.length === 0
     ) {
+      if (this.selectedFooter) {
+        this.selectedFooter.classList.add(
+          "hidden"
+        );
+      }
       this.selectedList.classList.add(
         "empty-state"
       );
@@ -632,6 +991,11 @@ class KaraokePicker {
       return;
     }
 
+    if (this.selectedFooter) {
+      this.selectedFooter.classList.remove(
+        "hidden"
+      );
+    }
     this.selectedList.classList.remove(
       "empty-state"
     );
@@ -646,6 +1010,46 @@ class KaraokePicker {
       .join("");
 
     this.selectedList.innerHTML = html;
+
+    // Update footer visibility based on section size vs viewport
+    this.updateSearchButtonVisibility();
+  }
+
+  updateSearchButtonVisibility() {
+    if (!this.selectedFooter) return;
+    // Hide if no selection
+    if (
+      !this.selectedSongs ||
+      this.selectedSongs.length === 0
+    ) {
+      this.selectedFooter.classList.add(
+        "hidden"
+      );
+      return;
+    }
+    const section =
+      this.selectedSection;
+    if (!section) {
+      this.selectedFooter.classList.remove(
+        "hidden"
+      );
+      return;
+    }
+    // If selected section content height is larger than viewport, show the button
+    // Use scrollHeight to avoid sensitivity to current scroll position
+    const margin = 24; // small breathing room
+    const shouldShow =
+      section.scrollHeight >
+      window.innerHeight - margin;
+    if (shouldShow) {
+      this.selectedFooter.classList.remove(
+        "hidden"
+      );
+    } else {
+      this.selectedFooter.classList.add(
+        "hidden"
+      );
+    }
   }
 
   getSortedSelectedSongs() {
@@ -721,10 +1125,60 @@ class KaraokePicker {
       return;
     }
 
+    // Capture an anchor to restore scroll accurately
+    let anchor = null;
     const previousScroll =
       preserveScroll
         ? this.availableList.scrollTop
         : 0;
+    if (preserveScroll) {
+      const listTop =
+        this.availableList.offsetTop;
+      const items =
+        this.availableList.querySelectorAll(
+          ".song-item"
+        );
+      for (const el of items) {
+        const elTop =
+          el.offsetTop - listTop;
+        if (
+          elTop >=
+          previousScroll - 10
+        ) {
+          const titleEl =
+            el.querySelector(
+              ".song-title"
+            );
+          const artistEl =
+            el.querySelector(
+              ".song-artist"
+            );
+          if (titleEl && artistEl) {
+            const title =
+              titleEl.textContent;
+            const artist =
+              artistEl.textContent.replace(
+                "🎵 ",
+                ""
+              );
+            const delta =
+              previousScroll - elTop;
+            anchor = {
+              title,
+              artist,
+              delta,
+            };
+          }
+          break;
+        }
+      }
+      // Prevent visual flicker by hiding during rebuild
+      const h =
+        this.availableList.clientHeight;
+      this.availableList.style.visibility =
+        "hidden";
+      this.availableList.style.minHeight = `${h}px`;
+    }
 
     this.availableList.innerHTML = "";
 
@@ -778,10 +1232,65 @@ class KaraokePicker {
         this.pendingRenderFrame = null;
         this.buildAlphabetNav(filtered);
         if (preserveScroll) {
-          this.availableList.scrollTop =
-            previousScroll;
+          let restored = false;
+          if (anchor) {
+            // Try to find the same item in the new DOM
+            const itemsNow =
+              this.availableList.querySelectorAll(
+                ".song-item"
+              );
+            for (const el of itemsNow) {
+              const titleEl =
+                el.querySelector(
+                  ".song-title"
+                );
+              const artistEl =
+                el.querySelector(
+                  ".song-artist"
+                );
+              if (
+                titleEl &&
+                artistEl &&
+                titleEl.textContent ===
+                  anchor.title &&
+                artistEl.textContent.replace(
+                  "🎵 ",
+                  ""
+                ) === anchor.artist
+              ) {
+                const targetTop =
+                  Math.max(
+                    el.offsetTop -
+                      this.availableList
+                        .offsetTop +
+                      anchor.delta,
+                    0
+                  );
+                this.availableList.scrollTop =
+                  targetTop;
+                restored = true;
+                break;
+              }
+            }
+          }
+          if (!restored) {
+            this.availableList.scrollTop =
+              previousScroll;
+          }
         } else {
           this.availableList.scrollTop = 0;
+        }
+
+        if (preserveScroll) {
+          // Reveal after scroll is restored
+          this.availableList.style.visibility =
+            "visible";
+          this.availableList.style.minHeight =
+            "";
+          // Update highlight/banner now that scroll is correct
+          this.updateCurrentLetter(
+            filtered
+          );
         }
       }
     };
